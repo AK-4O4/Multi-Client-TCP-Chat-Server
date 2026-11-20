@@ -33,7 +33,7 @@ This project is a fully functional, concurrent chat application built entirely f
 ```bash
 python server/server.py
 ```
-#### **1. Start the Server:** Open a new terminal (or multiple terminals for multiple local users), activate the environment, and run:
+#### **2. Start the Client(s):** Open a new terminal (or multiple terminals for multiple local users), activate the environment, and run:
 ```bash
 python client/client_gui.py
 ```
