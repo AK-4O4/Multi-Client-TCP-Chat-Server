@@ -1,6 +1,6 @@
-# Multi-Client TCP Chat Server (Project 7)
+# Multi-Client TCP Chat Server
 
-**Course:** Parallel and Distributed Computing (PDC)  
+**Course:** Parallel and Distributed Computing
 **Project Target:** TCP sockets, client–server with one thread per client.  
 **Data Task:** Receives, routes, and broadcasts message data among many clients on different lab PCs.
 
@@ -25,6 +25,30 @@ This project is a fully functional, concurrent chat application built entirely f
 2.  **Data Task (Routing & Broadcasting):** The server receives byte streams, parses them into commands, and uses a shared dictionary `{socket: nickname}` to route private messages or broadcast public messages.
 3.  **Work Split (Thread-per-Client):** The main server thread sits at `accept()`. Once a client connects, the server spawns a dedicated worker thread `threading.Thread(target=handle_client)`. This prevents blocking I/O from one client freezing the entire server.
 4.  **Coordination (Shared Data & Locks):** Because multiple threads read and write to the `clients` dictionary simultaneously, a `threading.Lock()` is used to create a critical section, preventing `RuntimeError` (dictionary changed size during iteration) and data corruption.
+
+---
+## 🖥️ To Run
+
+#### **1. Start the Server:** In the terminal, run:
+```bash
+python server/server.py
+```
+#### **1. Start the Server:** Open a new terminal (or multiple terminals for multiple local users), activate the environment, and run:
+```bash
+python client/client_gui.py
+```
+#### **3. Connecting Across Multiple Connected PCs (Distributed Setup):** To connect clients from different computers on the same network:
+1. On the Server PC, open your terminal and find your IPv4 address using ipconfig (e.g., 192.168.1.15).
+2. On the Client PC, open client/client_gui.py in a text editor.
+3. Scroll to line 12 and change the IP address:
+```python
+SERVER_IP = '192.168.1.15' # Change from 127.0.0.1 to your Server's IP
+```
+4. Run the client script:
+```bash
+python client/client_gui.py
+```
+(Note: Ensure Windows Firewall on the Server PC allows incoming connections on port 5555).
 
 ---
 
