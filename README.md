@@ -1,4 +1,4 @@
-# Multi-Client TCP Chat Server (Project 7)
+# Multi-Client TCP Chat Server
 
 **Course:** Parallel and Distributed Computing (PDC)  
 **Project Target:** TCP sockets, client–server with one thread per client.  
