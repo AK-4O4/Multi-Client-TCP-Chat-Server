@@ -4,78 +4,107 @@ import threading
 HOST = '0.0.0.0'
 PORT = 5555
 
-# This list holds the sockets of all connected clients
-clients = []
-
-# The lock ensures that only one thread can modify the 'clients' list at a time
-# This prevents race conditions!
+# Shared Data: maps socket objects to nicknames
+clients = {}
 lock = threading.Lock()
 
-def broadcast(message, sender_socket):
-    """Sends a message to every connected client except the sender."""
-    # We iterate over a copy of the list (clients[:]) so we don't crash 
-    # if a client disconnects while we are looping
+def broadcast(message):
+    """Sends a message to ALL connected clients."""
     with lock:
-        current_clients = clients[:]
+        current_sockets = list(clients.keys())
         
-    for client in current_clients:
-        if client != sender_socket:
-            try:
-                client.sendall(message)
-            except:
-                # If sending fails, the client is probably dead. Remove them.
-                with lock:
-                    if client in clients:
-                        clients.remove(client)
-                client.close()
+    for sock in current_sockets:
+        try:
+            sock.sendall(message)
+        except:
+            pass
 
 def handle_client(conn, addr):
-    """This function runs in a separate thread for every single client."""
-    print(f"[+] New connection from {addr}")
-    
-    # Add the new client to our shared list
-    with lock:
-        clients.append(conn)
-        
+    """This function runs in a separate thread for EVERY client."""
+    nick = None
     try:
+        # 1. Ask for a nickname upon connection
+        conn.sendall("Enter your nickname: ".encode('utf-8'))
+        nick = conn.recv(1024).decode('utf-8').strip()
+        
+        # 2. Check if nickname is taken
+        with lock:
+            if nick in clients.values():
+                conn.sendall("Error: Nickname already in use. Disconnecting.\n".encode('utf-8'))
+                return # Exits, triggering the finally block
+            
+            clients[conn] = nick
+        
+        # 3. Announce the new user (Send to EVERYONE)
+        broadcast(f"[Server] * {nick} has joined the chat.\n".encode('utf-8'))
+        print(f"[+] {nick} connected from {addr}")
+
+        # 4. Main loop to receive messages
         while True:
-            # Wait for data from this specific client
             data = conn.recv(1024)
             if not data:
-                break # Client disconnected normally
+                break 
             
-            # Decode and format the message (We'll use a dummy name for Week 11)
             text = data.decode('utf-8')
-            message = f"[{addr[1]}]: {text}".encode('utf-8')
             
-            print(f"Broadcasting: {text}")
-            broadcast(message, conn)
+            # --- COMMAND PARSING ---
+            if text.startswith('/nick '):
+                new_nick = text.split(' ', 1)[1].strip()
+                with lock:
+                    if new_nick in clients.values():
+                        conn.sendall("Error: That nickname is already taken.\n".encode('utf-8'))
+                    else:
+                        old_nick = clients[conn]
+                        clients[conn] = new_nick
+                        nick = new_nick
+                        # Send to EVERYONE
+                        broadcast(f"[Server] * {old_nick} is now known as {new_nick}.\n".encode('utf-8'))
             
+            elif text.startswith('/msg '):
+                # ... (Keep the /msg code exactly the same, it only goes to one person) ...
+                parts = text.split(' ', 2)
+                if len(parts) == 3:
+                    target_nick, msg = parts[1], parts[2]
+                    with lock:
+                        target_sock = next((s for s, n in clients.items() if n == target_nick), None)
+                    
+                    if target_sock:
+                        target_sock.sendall(f"[PM from {nick}] {msg}\n".encode('utf-8'))
+                    else:
+                        conn.sendall(f"Error: User '{target_nick}' not found.\n".encode('utf-8'))
+            
+            elif text.lower() == '/quit':
+                break
+            
+            else:
+                # Standard broadcast (Send to EVERYONE)
+                broadcast(f"[{nick}] {text}\n".encode('utf-8'))
+
     except ConnectionResetError:
-        print(f"[-] {addr} abruptly disconnected")
+        pass 
     finally:
-        # CLEANUP: This runs even if the client crashes
+        # ... (Keep the cleanup exactly the same) ...
         with lock:
             if conn in clients:
-                clients.remove(conn)
+                del clients[conn]
         conn.close()
-        print(f"[-] Connection closed for {addr}")
+        
+        if nick:
+            broadcast(f"[Server] * {nick} has left the chat.\n".encode('utf-8'))
+            print(f"[-] {nick} disconnected.")
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind((HOST, PORT))
     server_socket.listen(10)
-    print(f"[*] Multi-threaded Server listening on {HOST}:{PORT}")
+    print(f"[*] Server listening on {HOST}:{PORT}")
     
     while True:
-        # 1. Wait for a new connection
         conn, addr = server_socket.accept()
-        
-        # 2. Spawn a new worker thread for this client
-        # daemon=True means the thread will die if the main program exits
+        # Spawn a new thread for the client
         thread = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
         thread.start()
-        print(f"[*] Active threads: {threading.active_count() - 1}")
 
 if __name__ == "__main__":
     start_server()
